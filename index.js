@@ -6,6 +6,8 @@ const port = process.env.PORT || 4000;
 const app = express();
 const server = http.createServer(app);
 
+var utils = require("./utils");
+
 const io = socketIo(server, {
 	cors: {
 		origin: "*",
@@ -13,6 +15,19 @@ const io = socketIo(server, {
 });
 
 const games = {};
+
+// {
+// 	[gameId]: {
+// 		hostId: socket.id,
+// 		clientId: socket.id,
+// 		cells: []
+// 	}
+// }
+
+const drawStartingId = (gameId) => {
+	const ids = [games[gameId]["hostId"], games[gameId]["clientId"]];
+	return ids[Math.floor(Math.random() * ids.length)];
+};
 
 io.on("connection", (socket) => {
 	console.log("Client connected");
@@ -22,16 +37,19 @@ io.on("connection", (socket) => {
 		const gameId = Math.floor(10000 + Math.random() * 90000).toString();
 		socket.emit("newGameCreated", { gameId: gameId, userId: socket.id });
 		socket.join(gameId);
-		games[gameId] = { hostId: socket.id };
+		games[gameId] = { hostId: socket.id, cells: utils.initialCells };
 
 		console.log(`ID ${socket.id} created game ${gameId}`);
 	});
 
 	// Client trying to join a game
 	socket.on("joinGame", (gameId) => {
-		if (games[gameId]) {
+		if (games[gameId] && !games[gameId]["clientId"]) {
 			socket.join(gameId);
-			socket.emit("joinedGame", { gameId: gameId, userId: socket.id });
+			io.to(gameId).emit("joinedGame", {
+				gameId: gameId,
+				userId: socket.id,
+			});
 			socket.to(gameId).emit("clientReady");
 			games[gameId]["clientId"] = socket.id;
 
@@ -45,7 +63,26 @@ io.on("connection", (socket) => {
 	socket.on("startGame", (gameId) => {
 		socket.to(gameId).emit("hostReady");
 
+		const startingId = drawStartingId(gameId);
+		io.to(gameId).emit("turnInfo", {
+			nextTurnId: startingId,
+			cells: games[gameId]["cells"],
+		});
+
 		console.log(`Host ready to start game ${gameId}`);
+	});
+
+	// Receive turn info
+	socket.on("sendTurn", ({ gameId, userId, cells }) => {
+		const nextTurnId =
+			userId === games[gameId]["hostId"]
+				? games[gameId]["clientId"]
+				: games[gameId]["hostId"];
+
+		io.to(gameId).emit("turnInfo", {
+			nextTurnId: nextTurnId,
+			cells: cells,
+		});
 	});
 
 	// Disconnect
