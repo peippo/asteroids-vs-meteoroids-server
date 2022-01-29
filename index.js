@@ -37,7 +37,7 @@ io.on("connection", (socket) => {
 		const gameId = Math.floor(10000 + Math.random() * 90000).toString();
 		socket.emit("newGameCreated", { gameId: gameId, userId: socket.id });
 		socket.join(gameId);
-		games[gameId] = { hostId: socket.id, cells: utils.initialCells };
+		games[gameId] = { hostId: socket.id };
 
 		console.log(`ID ${socket.id} created game ${gameId}`);
 	});
@@ -65,6 +65,9 @@ io.on("connection", (socket) => {
 		socket.to(gameId).emit("hostReady");
 
 		const startingId = drawStartingId(gameId);
+		games[gameId]["cells"] = utils.initialCells;
+		io.to(gameId).emit("resetGame");
+
 		io.to(gameId).emit("turnInfo", {
 			nextTurnId: startingId,
 			cells: games[gameId]["cells"],
