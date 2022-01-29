@@ -108,6 +108,13 @@ io.on("connection", (socket) => {
 		);
 
 		if (gameToEnd) {
+			// Send notice of opponent leaving
+			const playerIdStillAround =
+				games[gameToEnd]["hostId"] === socket.id
+					? games[gameToEnd]["clientId"]
+					: games[gameToEnd]["hostId"];
+			io.to(playerIdStillAround).emit("opponentLeft");
+
 			delete games[gameToEnd];
 		}
 	});
