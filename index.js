@@ -49,8 +49,9 @@ io.on("connection", (socket) => {
 			io.to(gameId).emit("joinedGame", {
 				gameId: gameId,
 				userId: socket.id,
+				hostId: games[gameId]["hostId"],
 			});
-			socket.to(gameId).emit("clientReady");
+			socket.to(gameId).emit("clientReady", { clientId: socket.id });
 			games[gameId]["clientId"] = socket.id;
 
 			console.log(`ID ${socket.id} joining game ${gameId}`);
