@@ -84,6 +84,13 @@ io.on("connection", (socket) => {
 			nextTurnId: nextTurnId,
 			cells: cells,
 		});
+
+		const winner = utils.checkWinner(cells);
+		if (winner) {
+			io.to(gameId).emit("winnerFound", {
+				winnerId: winner,
+			});
+		}
 	});
 
 	// Disconnect
