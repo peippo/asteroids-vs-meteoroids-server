@@ -15,6 +15,7 @@ const io = socketIo(server, {
 });
 
 const games = {};
+let playersOnline = [];
 
 // {
 // 	[gameId]: {
@@ -32,11 +33,18 @@ const drawStartingId = (gameId) => {
 io.on("connection", (socket) => {
 	console.log("Client connected");
 
+	// Update players online count
+	if (!playersOnline.includes(socket.id)) {
+		playersOnline.push(socket.id);
+	}
+	io.emit("playersOnline", playersOnline.length);
+
 	// Create new game
 	socket.on("createNewGame", () => {
 		const gameId = Math.floor(10000 + Math.random() * 90000).toString();
 		socket.emit("newGameCreated", { gameId: gameId, userId: socket.id });
 		socket.join(gameId);
+		io.to(gameId).emit("resetGame");
 		games[gameId] = { hostId: socket.id };
 
 		console.log(`ID ${socket.id} created game ${gameId}`);
@@ -78,6 +86,8 @@ io.on("connection", (socket) => {
 
 	// Receive turn info
 	socket.on("sendTurn", ({ gameId, userId, cells }) => {
+		if (!games[gameId]) return;
+
 		const nextTurnId =
 			userId === games[gameId]["hostId"]
 				? games[gameId]["clientId"]
@@ -98,6 +108,10 @@ io.on("connection", (socket) => {
 
 	// Disconnect
 	socket.on("disconnect", () => {
+		// Update players online count
+		playersOnline = playersOnline.filter((id) => id !== socket.id);
+		io.emit("playersOnline", playersOnline.length);
+
 		console.log(`Client ${socket.id} disconnected`);
 
 		// Remove game when the host or client disconnects
