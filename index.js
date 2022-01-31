@@ -19,12 +19,12 @@ const io = socketIo(server, {
 const games = {};
 let playersOnline = [];
 
-// {
-// 	[gameId]: {
-// 		hostId: socket.id,
-// 		clientId: socket.id,
-// 		cells: []
-// 	}
+// games = {
+//    [gameId]: {
+// 	     hostId: <socket.id>,
+// 	     clientId: <socket.id>,
+// 	     cells: []
+// 	  }
 // }
 
 const drawStartingId = (gameId) => {
@@ -39,46 +39,57 @@ io.on("connection", (socket) => {
 	if (!playersOnline.includes(socket.id)) {
 		playersOnline.push(socket.id);
 	}
-	io.emit("playersOnline", playersOnline.length);
+	io.emit("PLAYERS_ONLINE_COUNT", playersOnline.length);
 
 	// Create new game
-	socket.on("createNewGame", () => {
+	socket.on("CREATE_NEW_GAME", () => {
 		const gameId = Math.floor(10000 + Math.random() * 90000).toString();
-		socket.emit("newGameCreated", { gameId: gameId, userId: socket.id });
 		socket.join(gameId);
-		io.to(gameId).emit("resetGame");
+
+		io.to(socket.id).emit("RESET_GAME");
+		io.to(socket.id).emit("NEW_GAME_CREATED", {
+			gameId: gameId,
+			userId: socket.id,
+		});
 		games[gameId] = { hostId: socket.id };
 
 		console.log(`ID ${socket.id} created game ${gameId}`);
 	});
 
 	// Client trying to join a game
-	socket.on("joinGame", (gameId) => {
+	socket.on("JOIN_GAME", (gameId) => {
 		if (games[gameId] && !games[gameId]["clientId"]) {
+			const hostId = games[gameId]["hostId"];
+
 			socket.join(gameId);
-			io.to(gameId).emit("joinedGame", {
+			games[gameId]["clientId"] = socket.id;
+
+			io.to(socket.id).emit("RESET_GAME");
+			io.to(socket.id).emit("JOINED_GAME", {
 				gameId: gameId,
 				userId: socket.id,
-				hostId: games[gameId]["hostId"],
+				hostId: hostId,
 			});
-			socket.to(gameId).emit("clientReady", { clientId: socket.id });
-			games[gameId]["clientId"] = socket.id;
+
+			io.to(hostId).emit("CLIENT_READY", { clientId: socket.id });
 
 			console.log(`ID ${socket.id} joining game ${gameId}`);
 		} else {
-			socket.emit("gameNotFound");
+			io.to(socket.id).emit("GAME_NOT_FOUND");
 		}
 	});
 
 	// Start the game
-	socket.on("startGame", (gameId) => {
-		socket.to(gameId).emit("hostReady");
+	socket.on("START_GAME", (gameId) => {
+		const clientId = games[gameId]["clientId"];
+
+		io.to(clientId).emit("HOST_READY");
 
 		const startingId = drawStartingId(gameId);
 		games[gameId]["cells"] = utils.initialCells;
-		io.to(gameId).emit("resetGame");
+		io.in(gameId).emit("RESET_GAME");
 
-		io.to(gameId).emit("turnInfo", {
+		io.in(gameId).emit("TURN_INFO", {
 			nextTurnId: startingId,
 			cells: games[gameId]["cells"],
 		});
@@ -87,7 +98,7 @@ io.on("connection", (socket) => {
 	});
 
 	// Receive turn info
-	socket.on("sendTurn", ({ gameId, userId, cells }) => {
+	socket.on("SUBMIT_TURN", ({ gameId, userId, cells }) => {
 		if (!games[gameId]) return;
 
 		const nextTurnId =
@@ -95,14 +106,14 @@ io.on("connection", (socket) => {
 				? games[gameId]["clientId"]
 				: games[gameId]["hostId"];
 
-		io.to(gameId).emit("turnInfo", {
+		io.in(gameId).emit("TURN_INFO", {
 			nextTurnId: nextTurnId,
 			cells: cells,
 		});
 
 		const winner = utils.checkWinner(cells);
 		if (winner) {
-			io.to(gameId).emit("winnerFound", {
+			io.in(gameId).emit("WINNER_FOUND", {
 				winnerId: winner,
 			});
 		}
@@ -112,7 +123,7 @@ io.on("connection", (socket) => {
 	socket.on("disconnect", () => {
 		// Update players online count
 		playersOnline = playersOnline.filter((id) => id !== socket.id);
-		io.emit("playersOnline", playersOnline.length);
+		io.emit("PLAYERS_ONLINE_COUNT", playersOnline.length);
 
 		console.log(`Client ${socket.id} disconnected`);
 
@@ -129,7 +140,7 @@ io.on("connection", (socket) => {
 				games[gameToEnd]["hostId"] === socket.id
 					? games[gameToEnd]["clientId"]
 					: games[gameToEnd]["hostId"];
-			io.to(playerIdStillAround).emit("opponentLeft");
+			io.to(playerIdStillAround).emit("OPPONENT_LEFT");
 
 			delete games[gameToEnd];
 		}
