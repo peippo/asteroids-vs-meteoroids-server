@@ -46,7 +46,6 @@ io.on("connection", (socket) => {
 		const gameId = Math.floor(10000 + Math.random() * 90000).toString();
 		socket.join(gameId);
 
-		io.to(socket.id).emit("RESET_GAME");
 		io.to(socket.id).emit("NEW_GAME_CREATED", {
 			gameId: gameId,
 			userId: socket.id,
@@ -64,7 +63,6 @@ io.on("connection", (socket) => {
 			socket.join(gameId);
 			games[gameId]["clientId"] = socket.id;
 
-			io.to(socket.id).emit("RESET_GAME");
 			io.to(socket.id).emit("JOINED_GAME", {
 				gameId: gameId,
 				userId: socket.id,
@@ -87,7 +85,7 @@ io.on("connection", (socket) => {
 
 		const startingId = drawStartingId(gameId);
 		games[gameId]["cells"] = utils.initialCells;
-		io.in(gameId).emit("RESET_GAME");
+		io.in(gameId).emit("RESET_BOARD");
 
 		io.in(gameId).emit("TURN_INFO", {
 			nextTurnId: startingId,
@@ -119,6 +117,13 @@ io.on("connection", (socket) => {
 		}
 	});
 
+	socket.on("QUIT_GAME", (gameId) => {
+		if (!gameId) return;
+
+		socket.leave(gameId);
+		io.in(gameId).emit("OPPONENT_LEFT");
+	});
+
 	// Disconnect
 	socket.on("disconnect", () => {
 		// Update players online count
@@ -136,11 +141,8 @@ io.on("connection", (socket) => {
 
 		if (gameToEnd) {
 			// Send notice of opponent leaving
-			const playerIdStillAround =
-				games[gameToEnd]["hostId"] === socket.id
-					? games[gameToEnd]["clientId"]
-					: games[gameToEnd]["hostId"];
-			io.to(playerIdStillAround).emit("OPPONENT_LEFT");
+			socket.leave(gameToEnd);
+			io.in(gameToEnd).emit("OPPONENT_LEFT");
 
 			delete games[gameToEnd];
 		}
