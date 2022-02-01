@@ -124,6 +124,14 @@ io.on("connection", (socket) => {
 		io.in(gameId).emit("OPPONENT_LEFT");
 	});
 
+	// Chat messages
+	socket.on("SUBMIT_MESSAGE", (message) => {
+		io.emit("NEW_MESSAGE", {
+			content: message,
+			userId: socket.id.substring(0, 4),
+		});
+	});
+
 	// Disconnect
 	socket.on("disconnect", () => {
 		// Update players online count
