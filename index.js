@@ -34,6 +34,7 @@ const drawStartingId = (gameId) => {
 
 io.on("connection", (socket) => {
 	console.log("Client connected");
+	io.to(socket.id).emit("CONNECTED");
 
 	// Update players online count
 	if (!playersOnline.includes(socket.id)) {
